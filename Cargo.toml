@@ -1,0 +1,6 @@
+[package]
+name = "hyprmon"
+version = "0.1.0"
+
+[dependencies]
+clap = { version = "4.1.8", features = ["derive"] }
