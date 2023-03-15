@@ -16,7 +16,7 @@ struct MonCmd<T> {
     cmds: Vec<Vec<T>>,
 }
 
-impl<'a> MonCmd<String> {
+impl MonCmd<String> {
     fn replace_moninfo(&self, mon: Mon<String>) -> Vec<Vec<String>> {
         self.cmds
             .iter()
@@ -41,11 +41,17 @@ impl<'a> MonCmd<String> {
     }
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[arg(short, long)]
     monitor: String,
+
+    #[arg(default_value_t = true, short, long)]
+    keyword: bool,
+
+    #[arg(default_value_t = false, short, long)]
+    dispatcher: bool,
 
     #[arg(short, long)]
     command: String,
@@ -60,8 +66,8 @@ fn main() {
     // }];
 
     let cmd: MonCmd<String> = MonCmd {
-        desc: args.monitor,
-        cmds: vec![args.command.split(" ").map(|x| x.to_owned()).collect()],
+        desc: args.monitor.to_owned(),
+        cmds: vec![args.command.split(' ').map(|x| x.to_owned()).collect()],
     };
 
     let output = Command::new("/usr/bin/hyprctl")
@@ -75,9 +81,9 @@ fn main() {
 
     file.lines().for_each(|y| {
         if y.contains("description") {
-            let st = y.clone().to_string();
-            let s = st.find("(").unwrap() + 1;
-            let ds = st.find(":").unwrap() + 2;
+            let st = y.to_string();
+            let s = st.find('(').unwrap() + 1;
+            let ds = st.find(':').unwrap() + 2;
             let i = st.get(s..(st.len() - 1)).unwrap().to_owned();
             let d = st.get(ds..(s - 2)).unwrap().to_owned();
             println!("mon:{}, desc:{}", i, d);
@@ -87,16 +93,25 @@ fn main() {
 
     mons.iter().for_each(|x| {
         // moncmds.iter().for_each(|y| {
-        if cmd.desc == x.desc {
+        if x.desc.contains(&cmd.desc) {
             let repmon = cmd.replace_moninfo(x.to_owned());
             repmon.iter().for_each(|z| {
-                println!("/usr/bin/hyprctl{}", z.join(" "));
+                let typ = |disp: bool| {
+                    if (disp) {
+                        return "dispatch";
+                    }
+                    "keyword"
+                };
+                let dispat = args.dispatcher;
+                println!("/usr/bin/hyprctl {} {}", typ(dispat), z.join(" "));
+                let arg2 = &z[1..].join(" ");
                 let rtrn = Command::new("/usr/bin/hyprctl")
-                    .arg("keyword")
+                    .arg(typ(dispat))
                     .arg(&z[0])
-                    .arg(&z[1])
+                    .arg(arg2)
                     .output()
                     .unwrap();
+                println!("{}", std::str::from_utf8(&rtrn.stderr).unwrap());
                 println!("{}", std::str::from_utf8(&rtrn.stdout).unwrap());
             });
         }
